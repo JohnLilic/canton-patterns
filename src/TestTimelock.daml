@@ -44,6 +44,9 @@ testExecuteAfterDeadline = script do
       payload = "500 tokens"
       unlockTime = unlock
 
+  -- Advance ledger time past the unlock time
+  setTime $ time (date 2020 Jan 2) 0 0 0
+
   receiptCid <- submit beneficiary do
     exerciseCmd timelockCid ExecuteAction
 
