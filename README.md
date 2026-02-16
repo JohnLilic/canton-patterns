@@ -127,14 +127,13 @@ submit proposer do exerciseCmd voted2 Tally
 canton-patterns/
 ├── daml.yaml
 ├── src/
-│   └── Patterns/
-│       ├── AccessControl.daml
-│       ├── Escrow.daml
-│       ├── Multisig.daml
-│       ├── Vesting.daml
-│       ├── Timelock.daml
-│       └── Voting.daml
-├── test/
+│   ├── Patterns/
+│   │   ├── AccessControl.daml
+│   │   ├── Escrow.daml
+│   │   ├── Multisig.daml
+│   │   ├── Vesting.daml
+│   │   ├── Timelock.daml
+│   │   └── Voting.daml
 │   ├── TestAccessControl.daml
 │   ├── TestEscrow.daml
 │   ├── TestMultisig.daml
