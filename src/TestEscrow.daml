@@ -11,7 +11,7 @@ testEscrowLifecycle = script do
   payer <- allocateParty "Payer"
   receiver <- allocateParty "Receiver"
 
-  let deadline = time (date 2025 Dec 31) 23 59
+  let deadline = time (date 2025 Dec 31) 23 59 0
 
   proposalCid <- submit payer do
     createCmd EscrowProposal with
@@ -45,7 +45,7 @@ testEscrowDispute = script do
   payer <- allocateParty "Payer"
   receiver <- allocateParty "Receiver"
 
-  let deadline = time (date 2025 Dec 31) 23 59
+  let deadline = time (date 2025 Dec 31) 23 59 0
 
   escrowCid <- submit payer do
     createCmd Escrow with
@@ -68,7 +68,7 @@ testEscrowCancel = script do
   payer <- allocateParty "Payer"
   receiver <- allocateParty "Receiver"
 
-  let deadline = time (date 2025 Dec 31) 23 59
+  let deadline = time (date 2025 Dec 31) 23 59 0
 
   proposalCid <- submit payer do
     createCmd EscrowProposal with
@@ -90,7 +90,7 @@ testCannotDepositTwice = script do
   payer <- allocateParty "Payer"
   receiver <- allocateParty "Receiver"
 
-  let deadline = time (date 2025 Dec 31) 23 59
+  let deadline = time (date 2025 Dec 31) 23 59 0
 
   escrowCid <- submit payer do
     createCmd Escrow with

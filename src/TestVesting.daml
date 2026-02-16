@@ -11,9 +11,9 @@ testAcceptVesting = script do
   grantor <- allocateParty "Grantor"
   beneficiary <- allocateParty "Beneficiary"
 
-  let start = time (date 2025 Jan 1) 0 0
-  let cliff = time (date 2025 Jul 1) 0 0
-  let end   = time (date 2027 Jan 1) 0 0
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
 
   proposalCid <- submit grantor do
     createCmd VestingProposal with
@@ -37,9 +37,9 @@ testNothingBeforeCliff = script do
   grantor <- allocateParty "Grantor"
   beneficiary <- allocateParty "Beneficiary"
 
-  let start = time (date 2025 Jan 1) 0 0
-  let cliff = time (date 2025 Jul 1) 0 0
-  let end   = time (date 2027 Jan 1) 0 0
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
 
   scheduleCid <- submit grantor do
     createCmd VestingSchedule with
@@ -52,7 +52,7 @@ testNothingBeforeCliff = script do
       endTime = end
 
   -- Query vested amount before cliff
-  let beforeCliff = time (date 2025 Mar 1) 0 0
+  let beforeCliff = time (date 2025 Mar 1) 0 0 0
   vested <- submit beneficiary do
     exerciseCmd scheduleCid CalculateVested with
       queryTime = beforeCliff
@@ -64,9 +64,9 @@ testFullyVestedAfterEnd = script do
   grantor <- allocateParty "Grantor"
   beneficiary <- allocateParty "Beneficiary"
 
-  let start = time (date 2025 Jan 1) 0 0
-  let cliff = time (date 2025 Jul 1) 0 0
-  let end   = time (date 2027 Jan 1) 0 0
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
 
   scheduleCid <- submit grantor do
     createCmd VestingSchedule with
@@ -78,7 +78,7 @@ testFullyVestedAfterEnd = script do
       cliffTime = cliff
       endTime = end
 
-  let afterEnd = time (date 2028 Jan 1) 0 0
+  let afterEnd = time (date 2028 Jan 1) 0 0 0
   vested <- submit beneficiary do
     exerciseCmd scheduleCid CalculateVested with
       queryTime = afterEnd
@@ -90,9 +90,9 @@ testRevokeUnvested = script do
   grantor <- allocateParty "Grantor"
   beneficiary <- allocateParty "Beneficiary"
 
-  let start = time (date 2025 Jan 1) 0 0
-  let cliff = time (date 2025 Jul 1) 0 0
-  let end   = time (date 2027 Jan 1) 0 0
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
 
   scheduleCid <- submit grantor do
     createCmd VestingSchedule with
@@ -105,7 +105,7 @@ testRevokeUnvested = script do
       endTime = end
 
   -- Revoke at the 1-year mark (halfway through 2-year schedule)
-  let revokeAt = time (date 2026 Jan 1) 0 0
+  let revokeAt = time (date 2026 Jan 1) 0 0 0
   revokedCid <- submit grantor do
     exerciseCmd scheduleCid RevokeUnvested with
       revokeTime = revokeAt

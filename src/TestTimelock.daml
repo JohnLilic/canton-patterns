@@ -11,7 +11,7 @@ testAcceptTimelockProposal = script do
   owner <- allocateParty "Owner"
   beneficiary <- allocateParty "Beneficiary"
 
-  let unlock = time (date 2025 Jun 1) 0 0
+  let unlock = time (date 2025 Jun 1) 0 0 0
 
   proposalCid <- submit owner do
     createCmd TimelockProposal with
@@ -34,7 +34,7 @@ testExecuteAfterDeadline = script do
   beneficiary <- allocateParty "Beneficiary"
 
   -- Set unlock time in the past so the action is immediately executable
-  let unlock = time (date 2020 Jan 1) 0 0
+  let unlock = time (date 2020 Jan 1) 0 0 0
 
   timelockCid <- submit owner do
     createCmd TimelockAction with
@@ -58,7 +58,7 @@ testCannotExecuteBeforeUnlock = script do
   beneficiary <- allocateParty "Beneficiary"
 
   -- Set unlock far in the future
-  let unlock = time (date 2099 Jan 1) 0 0
+  let unlock = time (date 2099 Jan 1) 0 0 0
 
   timelockCid <- submit owner do
     createCmd TimelockAction with
@@ -77,7 +77,7 @@ testRejectTimelockProposal = script do
   owner <- allocateParty "Owner"
   beneficiary <- allocateParty "Beneficiary"
 
-  let unlock = time (date 2025 Jun 1) 0 0
+  let unlock = time (date 2025 Jun 1) 0 0 0
 
   proposalCid <- submit owner do
     createCmd TimelockProposal with
