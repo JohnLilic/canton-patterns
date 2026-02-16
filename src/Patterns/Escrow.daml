@@ -2,8 +2,6 @@
 -- Supports deposit, release, dispute, and timeout.
 module Patterns.Escrow where
 
-import DA.Time (RelTime)
-
 -- | Current state of the escrow.
 data EscrowState
   = AwaitingDeposit

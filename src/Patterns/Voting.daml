@@ -2,8 +2,6 @@
 -- A proposer creates a ballot; eligible voters cast votes; tally decides.
 module Patterns.Voting where
 
-import DA.List (dedup, elem, length)
-
 -- | A vote cast by a voter.
 data Vote
   = Yes

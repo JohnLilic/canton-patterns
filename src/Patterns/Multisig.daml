@@ -2,7 +2,7 @@
 -- Collects signatures until the threshold is met, then executes.
 module Patterns.Multisig where
 
-import DA.List (dedup, elem)
+import DA.List (dedup)
 
 -- | A pending multisig action that requires M of N signers
 -- to approve before it can execute.

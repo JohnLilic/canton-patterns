@@ -1,7 +1,6 @@
 module TestVoting where
 
 import Daml.Script
-import DA.Time
 import DA.Date
 import Patterns.Voting
 
@@ -14,7 +13,7 @@ testVotingPasses = script do
   voter3 <- allocateParty "Voter3"
 
   -- Deadline in the far future so voting is open
-  let deadline = time (date 2099 Dec 31) (hours 23)
+  let deadline = time (date 2099 Dec 31) 23 0
 
   ballotCid <- submit proposer do
     createCmd Ballot with
@@ -40,7 +39,7 @@ testVotingPasses = script do
       vote = No
 
   -- Advance time past deadline to tally
-  setTime $ time (date 2100 Jan 1) (hours 0)
+  setTime $ time (date 2100 Jan 1) 0 0
 
   resultCid <- submit proposer do
     exerciseCmd voted3Cid Tally
@@ -58,7 +57,7 @@ testVotingFails = script do
   voter1 <- allocateParty "Voter1"
   voter2 <- allocateParty "Voter2"
 
-  let deadline = time (date 2099 Dec 31) (hours 23)
+  let deadline = time (date 2099 Dec 31) 23 0
 
   ballotCid <- submit proposer do
     createCmd Ballot with
@@ -78,7 +77,7 @@ testVotingFails = script do
       voter = voter2
       vote = No
 
-  setTime $ time (date 2100 Jan 1) (hours 0)
+  setTime $ time (date 2100 Jan 1) 0 0
 
   resultCid <- submit proposer do
     exerciseCmd voted2Cid Tally
@@ -95,7 +94,7 @@ testNonVoterCannotVote = script do
   voter1 <- allocateParty "Voter1"
   outsider <- allocateParty "Outsider"
 
-  let deadline = time (date 2099 Dec 31) (hours 23)
+  let deadline = time (date 2099 Dec 31) 23 0
 
   ballotCid <- submit proposer do
     createCmd Ballot with
@@ -116,7 +115,7 @@ testCancelBallot = script do
   proposer <- allocateParty "Proposer"
   voter1 <- allocateParty "Voter1"
 
-  let deadline = time (date 2099 Dec 31) (hours 23)
+  let deadline = time (date 2099 Dec 31) 23 0
 
   ballotCid <- submit proposer do
     createCmd Ballot with

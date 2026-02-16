@@ -2,6 +2,8 @@
 -- Tokens vest over time after an initial cliff period.
 module Patterns.Vesting where
 
+import DA.Time (subTime, convertRelTimeToMicroseconds)
+
 -- | A vesting schedule for tokens granted to a beneficiary.
 -- After the cliff, tokens unlock linearly until fully vested.
 template VestingSchedule
