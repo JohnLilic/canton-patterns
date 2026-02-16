@@ -105,12 +105,91 @@ testRevokeUnvested = script do
       endTime = end
 
   -- Revoke at the 1-year mark (halfway through 2-year schedule)
-  let revokeAt = time (date 2026 Jan 1) 0 0 0
+  setTime $ time (date 2026 Jan 1) 0 0 0
   revokedCid <- submit grantor do
-    exerciseCmd scheduleCid RevokeUnvested with
-      revokeTime = revokeAt
+    exerciseCmd scheduleCid RevokeUnvested
 
   Some revoked <- queryContractId grantor revokedCid
   -- Total should now be capped at vested amount
   assert $ revoked.totalAmount < 10000.0
-  assert $ revoked.endTime == revokeAt
+
+-- | Test: Beneficiary claims vested tokens after cliff.
+testClaimAfterCliff : Script ()
+testClaimAfterCliff = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  -- Advance to 1 year in (past cliff, halfway through schedule)
+  setTime $ time (date 2026 Jan 1) 0 0 0
+  claimedCid <- submit beneficiary do
+    exerciseCmd scheduleCid Claim with
+      claimAmount = 1000.0
+
+  Some claimed <- queryContractId beneficiary claimedCid
+  assert $ claimed.claimedAmount == 1000.0
+
+-- | Test: Cannot claim more than vested amount.
+testCannotOverclaim : Script ()
+testCannotOverclaim = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  -- At halfway, roughly 5000 vested — try claiming 9000
+  setTime $ time (date 2026 Jan 1) 0 0 0
+  submitMustFail beneficiary do
+    exerciseCmd scheduleCid Claim with
+      claimAmount = 9000.0
+
+-- | Test: Cannot claim before cliff.
+testCannotClaimBeforeCliff : Script ()
+testCannotClaimBeforeCliff = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) 0 0 0
+  let cliff = time (date 2025 Jul 1) 0 0 0
+  let end   = time (date 2027 Jan 1) 0 0 0
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  -- Before cliff, nothing vested — claim should fail
+  setTime $ time (date 2025 Mar 1) 0 0 0
+  submitMustFail beneficiary do
+    exerciseCmd scheduleCid Claim with
+      claimAmount = 100.0

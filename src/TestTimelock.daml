@@ -95,3 +95,68 @@ testRejectTimelockProposal = script do
 
   result <- queryContractId owner proposalCid
   assert $ result == None
+
+-- | Test: Owner can cancel before unlock time.
+testOwnerCancelsBeforeUnlock : Script ()
+testOwnerCancelsBeforeUnlock = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let unlock = time (date 2099 Jan 1) 0 0 0
+
+  timelockCid <- submit owner do
+    createCmd TimelockAction with
+      owner
+      beneficiary
+      description = "Cancellable action"
+      payload = "data"
+      unlockTime = unlock
+
+  submit owner do
+    exerciseCmd timelockCid CancelAction
+
+  result <- queryContractId owner timelockCid
+  assert $ result == None
+
+-- | Test: Owner cannot cancel after unlock time.
+testCannotCancelAfterUnlock : Script ()
+testCannotCancelAfterUnlock = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let unlock = time (date 2020 Jan 1) 0 0 0
+
+  timelockCid <- submit owner do
+    createCmd TimelockAction with
+      owner
+      beneficiary
+      description = "Locked in"
+      payload = "data"
+      unlockTime = unlock
+
+  setTime $ time (date 2020 Jan 2) 0 0 0
+
+  submitMustFail owner do
+    exerciseCmd timelockCid CancelAction
+
+-- | Test: Non-beneficiary cannot execute.
+testNonBeneficiaryCannotExecute : Script ()
+testNonBeneficiaryCannotExecute = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+  outsider <- allocateParty "Outsider"
+
+  let unlock = time (date 2020 Jan 1) 0 0 0
+
+  timelockCid <- submit owner do
+    createCmd TimelockAction with
+      owner
+      beneficiary
+      description = "Restricted"
+      payload = "data"
+      unlockTime = unlock
+
+  setTime $ time (date 2020 Jan 2) 0 0 0
+
+  submitMustFail outsider do
+    exerciseCmd timelockCid ExecuteAction

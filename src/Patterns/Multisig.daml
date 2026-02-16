@@ -20,6 +20,7 @@ template MultisigProposal
     ensure minSigners > 0
       && minSigners <= length signers
       && length signers > 0
+      && dedup signers == signers
 
     -- | A signer approves the proposal.
     choice Sign : ContractId MultisigProposal

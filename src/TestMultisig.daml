@@ -92,3 +92,59 @@ testCancelProposal = script do
 
   result <- queryContractId proposer proposalCid
   assert $ result == None
+
+-- | Test: Cannot create proposal with duplicate signers.
+testDuplicateSignersRejected : Script ()
+testDuplicateSignersRejected = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+
+  submitMustFail proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1, signer1]
+      minSigners = 1
+      description = "Dup signers"
+      approvals = []
+
+-- | Test: Same signer cannot sign twice.
+testDoubleSignRejected : Script ()
+testDoubleSignRejected = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+  signer2 <- allocateParty "Signer2"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1, signer2]
+      minSigners = 2
+      description = "No double signing"
+      approvals = []
+
+  signed1Cid <- submit signer1 do
+    exerciseCmd proposalCid Sign with signer = signer1
+
+  submitMustFail signer1 do
+    exerciseCmd signed1Cid Sign with signer = signer1
+
+-- | Test: Non-proposer cannot execute.
+testNonProposerCannotExecute : Script ()
+testNonProposerCannotExecute = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+  outsider <- allocateParty "Outsider"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1]
+      minSigners = 1
+      description = "Proposer-only execute"
+      approvals = []
+
+  signed1Cid <- submit signer1 do
+    exerciseCmd proposalCid Sign with signer = signer1
+
+  submitMustFail outsider do
+    exerciseCmd signed1Cid Execute

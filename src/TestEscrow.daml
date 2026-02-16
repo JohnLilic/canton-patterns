@@ -103,3 +103,108 @@ testCannotDepositTwice = script do
 
   submitMustFail payer do
     exerciseCmd escrowCid Deposit
+
+-- | Test: Cannot release when escrow is in AwaitingDeposit state.
+testCannotReleaseBeforeDeposit : Script ()
+testCannotReleaseBeforeDeposit = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) 23 59 0
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 100.0
+      asset = "USDC"
+      state = AwaitingDeposit
+      deadline
+
+  submitMustFail receiver do
+    exerciseCmd escrowCid Release
+
+-- | Test: Cannot dispute when escrow is in AwaitingDeposit state.
+testCannotDisputeBeforeDeposit : Script ()
+testCannotDisputeBeforeDeposit = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) 23 59 0
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 100.0
+      asset = "USDC"
+      state = AwaitingDeposit
+      deadline
+
+  submitMustFail receiver do
+    exerciseCmd escrowCid Dispute
+
+-- | Test: Payer can refund after deadline passes.
+testRefundAfterDeadline : Script ()
+testRefundAfterDeadline = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2020 Jun 1) 0 0 0
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 500.0
+      asset = "USDC"
+      state = Funded
+      deadline
+
+  setTime $ time (date 2020 Jun 2) 0 0 0
+
+  refundedCid <- submit payer do
+    exerciseCmd escrowCid Refund
+
+  Some refunded <- queryContractId payer refundedCid
+  assert $ refunded.state == Released
+
+-- | Test: Cannot refund before deadline.
+testCannotRefundBeforeDeadline : Script ()
+testCannotRefundBeforeDeadline = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2099 Dec 31) 23 59 0
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 500.0
+      asset = "USDC"
+      state = Funded
+      deadline
+
+  submitMustFail payer do
+    exerciseCmd escrowCid Refund
+
+-- | Test: Receiver cannot exercise payer-only choices.
+testReceiverCannotDeposit : Script ()
+testReceiverCannotDeposit = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) 23 59 0
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 100.0
+      asset = "USDC"
+      state = AwaitingDeposit
+      deadline
+
+  submitMustFail receiver do
+    exerciseCmd escrowCid Deposit

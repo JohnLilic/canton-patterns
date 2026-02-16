@@ -50,8 +50,18 @@ template Escrow
           state == Funded
         create this with state = Disputed
 
-    -- | Either party can trigger timeout after the deadline,
-    -- returning funds to the payer.
+    -- | Payer reclaims funds after the deadline has passed.
+    choice Refund : ContractId Escrow
+      controller payer
+      do
+        now <- getTime
+        assertMsg "Deadline has not passed yet" $
+          now >= deadline
+        assertMsg "Escrow must be in Funded state to refund" $
+          state == Funded
+        create this with state = Released
+
+    -- | Check whether the deadline has passed (read-only).
     nonconsuming choice CheckTimeout : Bool
       controller payer
       do

@@ -80,3 +80,50 @@ testRequestAndReject = script do
   -- Request should be archived
   result <- queryContractId admin requestCid
   assert $ result == None
+
+-- | Test: Non-admin cannot approve a role request.
+testNonAdminCannotApprove : Script ()
+testNonAdminCannotApprove = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+  outsider <- allocateParty "Outsider"
+
+  requestCid <- submit user do
+    createCmd RoleRequest with
+      admin
+      requester = user
+      role = Operator
+
+  submitMustFail outsider do
+    exerciseCmd requestCid Approve
+
+-- | Test: Non-admin cannot revoke a role assignment.
+testNonAdminCannotRevoke : Script ()
+testNonAdminCannotRevoke = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+
+  assignmentCid <- submit admin do
+    createCmd RoleAssignment with
+      admin
+      grantee = user
+      role = Operator
+
+  submitMustFail user do
+    exerciseCmd assignmentCid Revoke
+
+-- | Test: Non-grantee cannot accept a role grant.
+testNonGranteeCannotAccept : Script ()
+testNonGranteeCannotAccept = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+  outsider <- allocateParty "Outsider"
+
+  grantCid <- submit admin do
+    createCmd RoleGrant with
+      admin
+      grantee = user
+      role = Observer
+
+  submitMustFail outsider do
+    exerciseCmd grantCid Accept

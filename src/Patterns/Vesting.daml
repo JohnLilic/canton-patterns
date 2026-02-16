@@ -50,17 +50,16 @@ template VestingSchedule
     choice Claim : ContractId VestingSchedule
       with
         claimAmount : Decimal
-        currentTime : Time
       controller beneficiary
       do
-        -- Calculate vested amount at currentTime
+        now <- getTime
         vested <-
-          if currentTime < cliffTime then
+          if now < cliffTime then
             pure 0.0
-          else if currentTime >= endTime then
+          else if now >= endTime then
             pure totalAmount
           else do
-            let elapsed = subTime currentTime startTime
+            let elapsed = subTime now startTime
             let total = subTime endTime startTime
             let elapsedMicro = intToDecimal $
                   convertRelTimeToMicroseconds elapsed
@@ -77,17 +76,16 @@ template VestingSchedule
 
     -- | Grantor revokes the unvested portion (revocable vesting).
     choice RevokeUnvested : ContractId VestingSchedule
-      with
-        revokeTime : Time
       controller grantor
       do
+        now <- getTime
+        assertMsg "Cannot revoke before cliff" $
+          now >= cliffTime
         vested <-
-          if revokeTime < cliffTime then
-            pure 0.0
-          else if revokeTime >= endTime then
+          if now >= endTime then
             pure totalAmount
           else do
-            let elapsed = subTime revokeTime startTime
+            let elapsed = subTime now startTime
             let total = subTime endTime startTime
             let elapsedMicro = intToDecimal $
                   convertRelTimeToMicroseconds elapsed
@@ -96,10 +94,11 @@ template VestingSchedule
             let ratio = elapsedMicro / totalMicro
             pure $ ratio * totalAmount
 
-        -- Cap total at vested amount, keep what's already claimed
+        assertMsg "Cannot revoke less than already claimed" $
+          vested >= claimedAmount
         create this with
           totalAmount = vested
-          endTime = revokeTime
+          endTime = now
 
 -- | Proposal to create a vesting schedule. Beneficiary must accept.
 template VestingProposal

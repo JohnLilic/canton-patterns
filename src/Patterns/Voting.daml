@@ -72,7 +72,11 @@ template Ballot
     -- | Proposer cancels the ballot before deadline.
     choice CancelBallot : ()
       controller proposer
-      do pure ()
+      do
+        now <- getTime
+        assertMsg "Cannot cancel after deadline" $
+          now < deadline
+        pure ()
 
 -- | The outcome of a tallied ballot.
 template BallotResult

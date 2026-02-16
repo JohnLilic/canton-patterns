@@ -131,3 +131,108 @@ testCancelBallot = script do
 
   result <- queryContractId proposer ballotCid
   assert $ result == None
+
+-- | Test: Voter cannot vote twice on the same ballot.
+testDoubleVoteRejected : Script ()
+testDoubleVoteRejected = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+
+  let deadline = time (date 2099 Dec 31) 23 0 0
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "No double voting"
+      voters = [voter1]
+      votes = []
+      deadline
+
+  voted1Cid <- submit voter1 do
+    exerciseCmd ballotCid CastVote with
+      voter = voter1
+      vote = Yes
+
+  submitMustFail voter1 do
+    exerciseCmd voted1Cid CastVote with
+      voter = voter1
+      vote = No
+
+-- | Test: Cannot vote after the deadline.
+testCannotVoteAfterDeadline : Script ()
+testCannotVoteAfterDeadline = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+
+  let deadline = time (date 2020 Jun 1) 0 0 0
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Expired ballot"
+      voters = [voter1]
+      votes = []
+      deadline
+
+  setTime $ time (date 2020 Jun 2) 0 0 0
+
+  submitMustFail voter1 do
+    exerciseCmd ballotCid CastVote with
+      voter = voter1
+      vote = Yes
+
+-- | Test: Cannot tally before the deadline.
+testCannotTallyBeforeDeadline : Script ()
+testCannotTallyBeforeDeadline = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+
+  let deadline = time (date 2099 Dec 31) 23 0 0
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Too early to tally"
+      voters = [voter1]
+      votes = []
+      deadline
+
+  submitMustFail proposer do
+    exerciseCmd ballotCid Tally
+
+-- | Test: Tie results in failure (yes must strictly exceed no).
+testTieResultsInFailure : Script ()
+testTieResultsInFailure = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+  voter2 <- allocateParty "Voter2"
+
+  let deadline = time (date 2099 Dec 31) 23 0 0
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Tied vote"
+      voters = [voter1, voter2]
+      votes = []
+      deadline
+
+  voted1Cid <- submit voter1 do
+    exerciseCmd ballotCid CastVote with
+      voter = voter1
+      vote = Yes
+
+  voted2Cid <- submit voter2 do
+    exerciseCmd voted1Cid CastVote with
+      voter = voter2
+      vote = No
+
+  setTime $ time (date 2100 Jan 1) 0 0 0
+
+  resultCid <- submit proposer do
+    exerciseCmd voted2Cid Tally
+
+  Some result <- queryContractId proposer resultCid
+  assert $ result.yesVotes == 1
+  assert $ result.noVotes == 1
+  assert $ not result.passed
