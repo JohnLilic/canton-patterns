@@ -44,7 +44,9 @@ jobs:
       - name: Install Daml SDK
         run: |
           if [ ! -f ~/.daml/bin/daml ]; then
-            curl -sSL https://get.daml.com/ | sh -s ${{ steps.sdk-version.outputs.version }}
+            curl -sSL https://get.daml.com/ | bash
+            export PATH="$HOME/.daml/bin:$PATH"
+            daml install ${{ steps.sdk-version.outputs.version }}
           else
             echo "Daml SDK found in cache"
           fi
