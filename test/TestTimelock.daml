@@ -1,0 +1,94 @@
+module TestTimelock where
+
+import Daml.Script
+import DA.Time
+import DA.Date
+import Patterns.Timelock
+
+-- | Test: Beneficiary accepts proposal and creates timelock.
+testAcceptTimelockProposal : Script ()
+testAcceptTimelockProposal = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let unlock = time (date 2025 Jun 1) (hours 0)
+
+  proposalCid <- submit owner do
+    createCmd TimelockProposal with
+      owner
+      beneficiary
+      description = "Release bonus payment"
+      payload = "1000 USDC"
+      unlockTime = unlock
+
+  timelockCid <- submit beneficiary do
+    exerciseCmd proposalCid AcceptTimelock
+
+  Some tl <- queryContractId beneficiary timelockCid
+  assert $ tl.description == "Release bonus payment"
+
+-- | Test: Execute action after deadline passes.
+testExecuteAfterDeadline : Script ()
+testExecuteAfterDeadline = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  -- Set unlock time in the past so the action is immediately executable
+  let unlock = time (date 2020 Jan 1) (hours 0)
+
+  timelockCid <- submit owner do
+    createCmd TimelockAction with
+      owner
+      beneficiary
+      description = "Vest tokens"
+      payload = "500 tokens"
+      unlockTime = unlock
+
+  receiptCid <- submit beneficiary do
+    exerciseCmd timelockCid ExecuteAction
+
+  Some receipt <- queryContractId beneficiary receiptCid
+  assert $ receipt.description == "Vest tokens"
+  assert $ receipt.payload == "500 tokens"
+
+-- | Test: Cannot execute before the unlock time.
+testCannotExecuteBeforeUnlock : Script ()
+testCannotExecuteBeforeUnlock = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  -- Set unlock far in the future
+  let unlock = time (date 2099 Jan 1) (hours 0)
+
+  timelockCid <- submit owner do
+    createCmd TimelockAction with
+      owner
+      beneficiary
+      description = "Future action"
+      payload = "data"
+      unlockTime = unlock
+
+  submitMustFail beneficiary do
+    exerciseCmd timelockCid ExecuteAction
+
+-- | Test: Owner rejects/beneficiary rejects a proposal.
+testRejectTimelockProposal : Script ()
+testRejectTimelockProposal = script do
+  owner <- allocateParty "Owner"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let unlock = time (date 2025 Jun 1) (hours 0)
+
+  proposalCid <- submit owner do
+    createCmd TimelockProposal with
+      owner
+      beneficiary
+      description = "Rejected action"
+      payload = "nothing"
+      unlockTime = unlock
+
+  submit beneficiary do
+    exerciseCmd proposalCid RejectTimelock
+
+  result <- queryContractId owner proposalCid
+  assert $ result == None

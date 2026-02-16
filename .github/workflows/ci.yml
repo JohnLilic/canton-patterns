@@ -1,0 +1,70 @@
+name: Daml CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+env:
+  DAML_PROJECT_DIR: "."
+  JAVA_VERSION: "21"
+
+jobs:
+  build-and-test:
+    name: Build & Test Daml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Read Daml SDK version from daml.yaml
+        id: sdk-version
+        working-directory: ${{ env.DAML_PROJECT_DIR }}
+        run: |
+          SDK_VERSION=$(grep '^sdk-version:' daml.yaml | awk '{print $2}')
+          echo "version=$SDK_VERSION" >> $GITHUB_OUTPUT
+          echo "Detected Daml SDK version: $SDK_VERSION"
+
+      - name: Cache Daml SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.daml
+          key: daml-sdk-${{ steps.sdk-version.outputs.version }}-${{ runner.os }}
+          restore-keys: |
+            daml-sdk-${{ steps.sdk-version.outputs.version }}-
+
+      - name: Install Daml SDK
+        run: |
+          if [ ! -f ~/.daml/bin/daml ]; then
+            curl -sSL https://get.daml.com/ | sh -s ${{ steps.sdk-version.outputs.version }}
+          else
+            echo "Daml SDK found in cache"
+          fi
+          echo "$HOME/.daml/bin" >> $GITHUB_PATH
+
+      - name: Verify Daml installation
+        run: daml version
+
+      - name: Build Daml project
+        working-directory: ${{ env.DAML_PROJECT_DIR }}
+        run: daml build
+
+      - name: Run Daml tests
+        working-directory: ${{ env.DAML_PROJECT_DIR }}
+        run: daml test
+
+      - name: Upload DAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dar-package
+          path: ${{ env.DAML_PROJECT_DIR }}/.daml/dist/*.dar
+          retention-days: 30
+          if-no-files-found: error

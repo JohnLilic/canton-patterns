@@ -1,0 +1,83 @@
+-- | Time-locked action pattern for Canton/Daml.
+-- Actions can only execute after a specified deadline.
+module Patterns.Timelock where
+
+-- | A time-locked action that becomes executable after a deadline.
+-- The owner creates it; the beneficiary can execute after unlock.
+template TimelockAction
+  with
+    owner       : Party
+    beneficiary : Party
+    description : Text
+    unlockTime  : Time
+    payload     : Text
+  where
+    signatory owner
+    observer beneficiary
+
+    -- | Beneficiary executes the action after the unlock time.
+    choice ExecuteAction : ContractId TimelockReceipt
+      controller beneficiary
+      do
+        now <- getTime
+        assertMsg "Action is still locked — deadline not reached" $
+          now >= unlockTime
+        create TimelockReceipt with
+          owner
+          beneficiary
+          description
+          payload
+          executedAt = now
+
+    -- | Owner cancels the time-locked action before it unlocks.
+    choice CancelAction : ()
+      controller owner
+      do
+        now <- getTime
+        assertMsg "Cannot cancel — action already unlockable" $
+          now < unlockTime
+        pure ()
+
+    -- | Check whether the action is currently unlocked.
+    nonconsuming choice IsUnlocked : Bool
+      controller beneficiary
+      do
+        now <- getTime
+        pure $ now >= unlockTime
+
+-- | Receipt proving a time-locked action was executed.
+template TimelockReceipt
+  with
+    owner       : Party
+    beneficiary : Party
+    description : Text
+    payload     : Text
+    executedAt  : Time
+  where
+    signatory owner, beneficiary
+
+-- | Proposal to create a time-locked action.
+-- The beneficiary must accept before the action is created.
+template TimelockProposal
+  with
+    owner       : Party
+    beneficiary : Party
+    description : Text
+    payload     : Text
+    unlockTime  : Time
+  where
+    signatory owner
+    observer beneficiary
+
+    choice AcceptTimelock : ContractId TimelockAction
+      controller beneficiary
+      do create TimelockAction with
+           owner
+           beneficiary
+           description
+           payload
+           unlockTime
+
+    choice RejectTimelock : ()
+      controller beneficiary
+      do pure ()

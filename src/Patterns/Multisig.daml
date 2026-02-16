@@ -1,0 +1,66 @@
+-- | M-of-N multisig approval pattern for Canton/Daml.
+-- Collects signatures until the threshold is met, then executes.
+module Patterns.Multisig where
+
+import DA.List (dedup, elem)
+
+-- | A pending multisig action that requires M of N signers
+-- to approve before it can execute.
+template MultisigProposal
+  with
+    proposer   : Party
+    signers    : [Party]
+    minSigners : Int
+    description : Text
+    approvals  : [Party]
+  where
+    signatory proposer :: approvals
+    observer signers
+
+    ensure minSigners > 0
+      && minSigners <= length signers
+      && length signers > 0
+
+    -- | A signer approves the proposal.
+    choice Sign : ContractId MultisigProposal
+      with
+        signer : Party
+      controller signer
+      do
+        assertMsg "Signer must be in the signers list" $
+          signer `elem` signers
+        assertMsg "Signer has already approved" $
+          not $ signer `elem` approvals
+        create this with
+          approvals = dedup $ signer :: approvals
+
+    -- | Check whether the threshold has been reached.
+    nonconsuming choice IsApproved : Bool
+      controller proposer
+      do pure $ length approvals >= minSigners
+
+    -- | Execute the action once the threshold is met.
+    -- Archives this contract and creates an Executed receipt.
+    choice Execute : ContractId MultisigExecution
+      controller proposer
+      do
+        assertMsg "Not enough approvals" $
+          length approvals >= minSigners
+        create MultisigExecution with
+          proposer
+          signers = approvals
+          description
+
+    -- | Proposer cancels the proposal.
+    choice Cancel : ()
+      controller proposer
+      do pure ()
+
+-- | Receipt that a multisig action was successfully executed.
+template MultisigExecution
+  with
+    proposer    : Party
+    signers     : [Party]
+    description : Text
+  where
+    signatory proposer :: signers

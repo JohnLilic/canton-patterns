@@ -1,0 +1,89 @@
+-- | Simple proposal + vote + tally pattern for Canton/Daml.
+-- A proposer creates a ballot; eligible voters cast votes; tally decides.
+module Patterns.Voting where
+
+import DA.List (dedup, elem, length)
+
+-- | A vote cast by a voter.
+data Vote
+  = Yes
+  | No
+  | Abstain
+  deriving (Eq, Show)
+
+-- | Record of an individual vote, used in the tally.
+data VoteRecord = VoteRecord
+  with
+    voter : Party
+    vote  : Vote
+  deriving (Eq, Show)
+
+-- | A ballot / proposal that eligible voters can vote on.
+template Ballot
+  with
+    proposer   : Party
+    description : Text
+    voters     : [Party]
+    votes      : [VoteRecord]
+    deadline   : Time
+  where
+    signatory proposer :: fmap (\vr -> vr.voter) votes
+    observer voters
+
+    ensure length voters > 0
+
+    -- | An eligible voter casts their vote.
+    choice CastVote : ContractId Ballot
+      with
+        voter : Party
+        vote  : Vote
+      controller voter
+      do
+        assertMsg "Voter is not eligible" $
+          voter `elem` voters
+        assertMsg "Voter has already voted" $
+          not $ voter `elem` fmap (\vr -> vr.voter) votes
+        now <- getTime
+        assertMsg "Voting deadline has passed" $
+          now < deadline
+        create this with
+          votes = VoteRecord voter vote :: votes
+
+    -- | Proposer tallies the votes after the deadline.
+    choice Tally : ContractId BallotResult
+      controller proposer
+      do
+        now <- getTime
+        assertMsg "Cannot tally before deadline" $
+          now >= deadline
+        let yesCount = length $ filter
+              (\vr -> vr.vote == Yes) votes
+        let noCount = length $ filter
+              (\vr -> vr.vote == No) votes
+        let abstainCount = length $ filter
+              (\vr -> vr.vote == Abstain) votes
+        let passed = yesCount > noCount
+        create BallotResult with
+          proposer
+          description
+          yesVotes = yesCount
+          noVotes = noCount
+          abstainVotes = abstainCount
+          passed
+
+    -- | Proposer cancels the ballot before deadline.
+    choice CancelBallot : ()
+      controller proposer
+      do pure ()
+
+-- | The outcome of a tallied ballot.
+template BallotResult
+  with
+    proposer     : Party
+    description  : Text
+    yesVotes     : Int
+    noVotes      : Int
+    abstainVotes : Int
+    passed       : Bool
+  where
+    signatory proposer

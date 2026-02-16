@@ -1,0 +1,133 @@
+module TestVoting where
+
+import Daml.Script
+import DA.Time
+import DA.Date
+import Patterns.Voting
+
+-- | Test: Create ballot, cast votes, tally — proposal passes.
+testVotingPasses : Script ()
+testVotingPasses = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+  voter2 <- allocateParty "Voter2"
+  voter3 <- allocateParty "Voter3"
+
+  -- Deadline in the far future so voting is open
+  let deadline = time (date 2099 Dec 31) (hours 23)
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Upgrade protocol to v2"
+      voters = [voter1, voter2, voter3]
+      votes = []
+      deadline
+
+  voted1Cid <- submit voter1 do
+    exerciseCmd ballotCid CastVote with
+      voter = voter1
+      vote = Yes
+
+  voted2Cid <- submit voter2 do
+    exerciseCmd voted1Cid CastVote with
+      voter = voter2
+      vote = Yes
+
+  voted3Cid <- submit voter3 do
+    exerciseCmd voted2Cid CastVote with
+      voter = voter3
+      vote = No
+
+  -- Advance time past deadline to tally
+  setTime $ time (date 2100 Jan 1) (hours 0)
+
+  resultCid <- submit proposer do
+    exerciseCmd voted3Cid Tally
+
+  Some result <- queryContractId proposer resultCid
+  assert $ result.yesVotes == 2
+  assert $ result.noVotes == 1
+  assert $ result.abstainVotes == 0
+  assert $ result.passed
+
+-- | Test: Proposal fails when No votes outnumber Yes.
+testVotingFails : Script ()
+testVotingFails = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+  voter2 <- allocateParty "Voter2"
+
+  let deadline = time (date 2099 Dec 31) (hours 23)
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Bad proposal"
+      voters = [voter1, voter2]
+      votes = []
+      deadline
+
+  voted1Cid <- submit voter1 do
+    exerciseCmd ballotCid CastVote with
+      voter = voter1
+      vote = No
+
+  voted2Cid <- submit voter2 do
+    exerciseCmd voted1Cid CastVote with
+      voter = voter2
+      vote = No
+
+  setTime $ time (date 2100 Jan 1) (hours 0)
+
+  resultCid <- submit proposer do
+    exerciseCmd voted2Cid Tally
+
+  Some result <- queryContractId proposer resultCid
+  assert $ result.yesVotes == 0
+  assert $ result.noVotes == 2
+  assert $ not result.passed
+
+-- | Test: Non-eligible voter cannot cast a vote.
+testNonVoterCannotVote : Script ()
+testNonVoterCannotVote = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+  outsider <- allocateParty "Outsider"
+
+  let deadline = time (date 2099 Dec 31) (hours 23)
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Restricted vote"
+      voters = [voter1]
+      votes = []
+      deadline
+
+  submitMustFail outsider do
+    exerciseCmd ballotCid CastVote with
+      voter = outsider
+      vote = Yes
+
+-- | Test: Proposer can cancel a ballot.
+testCancelBallot : Script ()
+testCancelBallot = script do
+  proposer <- allocateParty "Proposer"
+  voter1 <- allocateParty "Voter1"
+
+  let deadline = time (date 2099 Dec 31) (hours 23)
+
+  ballotCid <- submit proposer do
+    createCmd Ballot with
+      proposer
+      description = "Will be cancelled"
+      voters = [voter1]
+      votes = []
+      deadline
+
+  submit proposer do
+    exerciseCmd ballotCid CancelBallot
+
+  result <- queryContractId proposer ballotCid
+  assert $ result == None

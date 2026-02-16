@@ -1,0 +1,116 @@
+module TestVesting where
+
+import Daml.Script
+import DA.Time
+import DA.Date
+import Patterns.Vesting
+
+-- | Test: Beneficiary accepts vesting proposal.
+testAcceptVesting : Script ()
+testAcceptVesting = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) (hours 0)
+  let cliff = time (date 2025 Jul 1) (hours 0)
+  let end   = time (date 2027 Jan 1) (hours 0)
+
+  proposalCid <- submit grantor do
+    createCmd VestingProposal with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  scheduleCid <- submit beneficiary do
+    exerciseCmd proposalCid AcceptVesting
+
+  Some schedule <- queryContractId beneficiary scheduleCid
+  assert $ schedule.totalAmount == 10000.0
+  assert $ schedule.claimedAmount == 0.0
+
+-- | Test: Nothing vested before cliff.
+testNothingBeforeCliff : Script ()
+testNothingBeforeCliff = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) (hours 0)
+  let cliff = time (date 2025 Jul 1) (hours 0)
+  let end   = time (date 2027 Jan 1) (hours 0)
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  -- Query vested amount before cliff
+  let beforeCliff = time (date 2025 Mar 1) (hours 0)
+  vested <- submit beneficiary do
+    exerciseCmd scheduleCid CalculateVested with
+      queryTime = beforeCliff
+  assert $ vested == 0.0
+
+-- | Test: Full amount vested after end time.
+testFullyVestedAfterEnd : Script ()
+testFullyVestedAfterEnd = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) (hours 0)
+  let cliff = time (date 2025 Jul 1) (hours 0)
+  let end   = time (date 2027 Jan 1) (hours 0)
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  let afterEnd = time (date 2028 Jan 1) (hours 0)
+  vested <- submit beneficiary do
+    exerciseCmd scheduleCid CalculateVested with
+      queryTime = afterEnd
+  assert $ vested == 10000.0
+
+-- | Test: Grantor revokes unvested portion.
+testRevokeUnvested : Script ()
+testRevokeUnvested = script do
+  grantor <- allocateParty "Grantor"
+  beneficiary <- allocateParty "Beneficiary"
+
+  let start = time (date 2025 Jan 1) (hours 0)
+  let cliff = time (date 2025 Jul 1) (hours 0)
+  let end   = time (date 2027 Jan 1) (hours 0)
+
+  scheduleCid <- submit grantor do
+    createCmd VestingSchedule with
+      grantor
+      beneficiary
+      totalAmount = 10000.0
+      claimedAmount = 0.0
+      startTime = start
+      cliffTime = cliff
+      endTime = end
+
+  -- Revoke at the 1-year mark (halfway through 2-year schedule)
+  let revokeAt = time (date 2026 Jan 1) (hours 0)
+  revokedCid <- submit grantor do
+    exerciseCmd scheduleCid RevokeUnvested with
+      revokeTime = revokeAt
+
+  Some revoked <- queryContractId grantor revokedCid
+  -- Total should now be capped at vested amount
+  assert $ revoked.totalAmount < 10000.0
+  assert $ revoked.endTime == revokeAt

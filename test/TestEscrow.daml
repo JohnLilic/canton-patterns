@@ -1,0 +1,105 @@
+module TestEscrow where
+
+import Daml.Script
+import DA.Time
+import DA.Date
+import Patterns.Escrow
+
+-- | Test: Full escrow lifecycle — propose, accept, deposit, release.
+testEscrowLifecycle : Script ()
+testEscrowLifecycle = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) (hours 23 + minutes 59)
+
+  proposalCid <- submit payer do
+    createCmd EscrowProposal with
+      payer
+      receiver
+      amount = 1000.0
+      asset = "USDC"
+      deadline
+
+  escrowCid <- submit receiver do
+    exerciseCmd proposalCid AcceptProposal
+
+  Some escrow <- queryContractId payer escrowCid
+  assert $ escrow.state == AwaitingDeposit
+
+  fundedCid <- submit payer do
+    exerciseCmd escrowCid Deposit
+
+  Some funded <- queryContractId payer fundedCid
+  assert $ funded.state == Funded
+
+  releasedCid <- submit receiver do
+    exerciseCmd fundedCid Release
+
+  Some released <- queryContractId payer releasedCid
+  assert $ released.state == Released
+
+-- | Test: Receiver disputes a funded escrow.
+testEscrowDispute : Script ()
+testEscrowDispute = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) (hours 23 + minutes 59)
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 500.0
+      asset = "DAI"
+      state = Funded
+      deadline
+
+  disputedCid <- submit receiver do
+    exerciseCmd escrowCid Dispute
+
+  Some disputed <- queryContractId payer disputedCid
+  assert $ disputed.state == Disputed
+
+-- | Test: Payer cancels a proposal before receiver accepts.
+testEscrowCancel : Script ()
+testEscrowCancel = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) (hours 23 + minutes 59)
+
+  proposalCid <- submit payer do
+    createCmd EscrowProposal with
+      payer
+      receiver
+      amount = 250.0
+      asset = "ETH"
+      deadline
+
+  submit payer do
+    exerciseCmd proposalCid CancelProposal
+
+  result <- queryContractId payer proposalCid
+  assert $ result == None
+
+-- | Test: Cannot deposit when escrow is already funded.
+testCannotDepositTwice : Script ()
+testCannotDepositTwice = script do
+  payer <- allocateParty "Payer"
+  receiver <- allocateParty "Receiver"
+
+  let deadline = time (date 2025 Dec 31) (hours 23 + minutes 59)
+
+  escrowCid <- submit payer do
+    createCmd Escrow with
+      payer
+      receiver
+      amount = 100.0
+      asset = "BTC"
+      state = Funded
+      deadline
+
+  submitMustFail payer do
+    exerciseCmd escrowCid Deposit

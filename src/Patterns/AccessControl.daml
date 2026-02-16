@@ -1,0 +1,74 @@
+-- | Role-based access control pattern for Canton/Daml.
+-- Supports Admin, Operator, and Observer roles with grant/revoke.
+module Patterns.AccessControl where
+
+-- | Roles that can be assigned to parties.
+data Role
+  = Admin
+  | Operator
+  | Observer
+  deriving (Eq, Show)
+
+-- | A role assignment linking a party to a specific role,
+-- governed by an admin who can manage assignments.
+template RoleAssignment
+  with
+    admin    : Party
+    grantee  : Party
+    role     : Role
+  where
+    signatory admin
+    observer grantee
+
+    -- | Admin revokes this role assignment, archiving the contract.
+    choice Revoke : ()
+      controller admin
+      do pure ()
+
+-- | Request from a party to be granted a specific role.
+-- The admin can approve or reject the request.
+template RoleRequest
+  with
+    admin     : Party
+    requester : Party
+    role      : Role
+  where
+    signatory requester
+    observer admin
+
+    -- | Admin approves the request, creating a RoleAssignment.
+    choice Approve : ContractId RoleAssignment
+      controller admin
+      do create RoleAssignment with
+           admin
+           grantee = requester
+           role
+
+    -- | Admin rejects the request, archiving it.
+    choice Reject : ()
+      controller admin
+      do pure ()
+
+-- | Admin-initiated direct grant of a role to a party.
+-- The grantee must accept.
+template RoleGrant
+  with
+    admin   : Party
+    grantee : Party
+    role    : Role
+  where
+    signatory admin
+    observer grantee
+
+    -- | Grantee accepts the role, creating a RoleAssignment.
+    choice Accept : ContractId RoleAssignment
+      controller grantee
+      do create RoleAssignment with
+           admin
+           grantee
+           role
+
+    -- | Admin withdraws the grant offer.
+    choice Withdraw : ()
+      controller admin
+      do pure ()

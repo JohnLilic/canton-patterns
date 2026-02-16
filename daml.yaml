@@ -1,0 +1,10 @@
+sdk-version: 2.9.0
+name: canton-patterns
+version: 0.1.0
+source:
+  - src
+  - test
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script

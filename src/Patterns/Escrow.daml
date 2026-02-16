@@ -1,0 +1,91 @@
+-- | Two-party escrow pattern for Canton/Daml.
+-- Supports deposit, release, dispute, and timeout.
+module Patterns.Escrow where
+
+import DA.Time (RelTime)
+
+-- | Current state of the escrow.
+data EscrowState
+  = AwaitingDeposit
+  | Funded
+  | Released
+  | Disputed
+  deriving (Eq, Show)
+
+-- | A two-party escrow contract. The payer deposits an asset
+-- description and amount; the receiver can release or dispute.
+template Escrow
+  with
+    payer    : Party
+    receiver : Party
+    amount   : Decimal
+    asset    : Text
+    state    : EscrowState
+    deadline : Time
+  where
+    signatory payer
+    observer receiver
+
+    ensure amount > 0.0
+
+    -- | Payer funds the escrow, moving it to Funded state.
+    choice Deposit : ContractId Escrow
+      controller payer
+      do
+        assertMsg "Escrow must be in AwaitingDeposit state" $
+          state == AwaitingDeposit
+        create this with state = Funded
+
+    -- | Receiver confirms receipt and releases funds to payer.
+    choice Release : ContractId Escrow
+      controller receiver
+      do
+        assertMsg "Escrow must be in Funded state" $
+          state == Funded
+        create this with state = Released
+
+    -- | Receiver disputes the escrow.
+    choice Dispute : ContractId Escrow
+      controller receiver
+      do
+        assertMsg "Escrow must be in Funded state" $
+          state == Funded
+        create this with state = Disputed
+
+    -- | Either party can trigger timeout after the deadline,
+    -- returning funds to the payer.
+    nonconsuming choice CheckTimeout : Bool
+      controller payer
+      do
+        now <- getTime
+        pure $ now >= deadline
+
+-- | Proposal to create an escrow — the receiver must accept.
+template EscrowProposal
+  with
+    payer    : Party
+    receiver : Party
+    amount   : Decimal
+    asset    : Text
+    deadline : Time
+  where
+    signatory payer
+    observer receiver
+
+    ensure amount > 0.0
+
+    -- | Receiver accepts the proposal, creating the Escrow.
+    choice AcceptProposal : ContractId Escrow
+      controller receiver
+      do create Escrow with
+           payer
+           receiver
+           amount
+           asset
+           state = AwaitingDeposit
+           deadline
+
+    -- | Payer cancels the proposal.
+    choice CancelProposal : ()
+      controller payer
+      do pure ()

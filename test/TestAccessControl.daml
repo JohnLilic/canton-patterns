@@ -1,0 +1,82 @@
+module TestAccessControl where
+
+import Daml.Script
+import Patterns.AccessControl
+
+-- | Test: Admin can directly grant a role via RoleGrant + Accept.
+testGrantAndAccept : Script ()
+testGrantAndAccept = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+
+  grantCid <- submit admin do
+    createCmd RoleGrant with
+      admin
+      grantee = user
+      role = Operator
+
+  assignmentCid <- submit user do
+    exerciseCmd grantCid Accept
+
+  Some assignment <- queryContractId user assignmentCid
+  assert $ assignment.role == Operator
+  assert $ assignment.grantee == user
+
+-- | Test: Admin can revoke a previously granted role.
+testRevokeRole : Script ()
+testRevokeRole = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+
+  grantCid <- submit admin do
+    createCmd RoleGrant with
+      admin
+      grantee = user
+      role = Observer
+
+  assignmentCid <- submit user do
+    exerciseCmd grantCid Accept
+
+  submit admin do
+    exerciseCmd assignmentCid Revoke
+
+  -- Verify the assignment no longer exists
+  result <- queryContractId admin assignmentCid
+  assert $ result == None
+
+-- | Test: User requests a role, admin approves.
+testRequestAndApprove : Script ()
+testRequestAndApprove = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+
+  requestCid <- submit user do
+    createCmd RoleRequest with
+      admin
+      requester = user
+      role = Admin
+
+  assignmentCid <- submit admin do
+    exerciseCmd requestCid Approve
+
+  Some assignment <- queryContractId user assignmentCid
+  assert $ assignment.role == Admin
+
+-- | Test: Admin rejects a role request.
+testRequestAndReject : Script ()
+testRequestAndReject = script do
+  admin <- allocateParty "Admin"
+  user <- allocateParty "User"
+
+  requestCid <- submit user do
+    createCmd RoleRequest with
+      admin
+      requester = user
+      role = Operator
+
+  submit admin do
+    exerciseCmd requestCid Reject
+
+  -- Request should be archived
+  result <- queryContractId admin requestCid
+  assert $ result == None

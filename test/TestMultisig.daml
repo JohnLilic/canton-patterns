@@ -1,0 +1,94 @@
+module TestMultisig where
+
+import Daml.Script
+import Patterns.Multisig
+
+-- | Test: 2-of-3 multisig — two signers approve, proposer executes.
+testMultisigApproveAndExecute : Script ()
+testMultisigApproveAndExecute = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+  signer2 <- allocateParty "Signer2"
+  signer3 <- allocateParty "Signer3"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1, signer2, signer3]
+      minSigners = 2
+      description = "Transfer 1000 tokens"
+      approvals = []
+
+  signed1Cid <- submit signer1 do
+    exerciseCmd proposalCid Sign with signer = signer1
+
+  signed2Cid <- submit signer2 do
+    exerciseCmd signed1Cid Sign with signer = signer2
+
+  executionCid <- submit proposer do
+    exerciseCmd signed2Cid Execute
+
+  Some execution <- queryContractId proposer executionCid
+  assert $ execution.description == "Transfer 1000 tokens"
+  assert $ length execution.signers == 2
+
+-- | Test: Cannot execute before reaching the threshold.
+testCannotExecuteBeforeThreshold : Script ()
+testCannotExecuteBeforeThreshold = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+  signer2 <- allocateParty "Signer2"
+  signer3 <- allocateParty "Signer3"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1, signer2, signer3]
+      minSigners = 2
+      description = "Needs 2 of 3"
+      approvals = []
+
+  signed1Cid <- submit signer1 do
+    exerciseCmd proposalCid Sign with signer = signer1
+
+  -- Only 1 approval, threshold is 2
+  submitMustFail proposer do
+    exerciseCmd signed1Cid Execute
+
+-- | Test: A non-signer cannot sign the proposal.
+testNonSignerCannotSign : Script ()
+testNonSignerCannotSign = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+  outsider <- allocateParty "Outsider"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1]
+      minSigners = 1
+      description = "1 of 1"
+      approvals = []
+
+  submitMustFail outsider do
+    exerciseCmd proposalCid Sign with signer = outsider
+
+-- | Test: Proposer can cancel the proposal.
+testCancelProposal : Script ()
+testCancelProposal = script do
+  proposer <- allocateParty "Proposer"
+  signer1 <- allocateParty "Signer1"
+
+  proposalCid <- submit proposer do
+    createCmd MultisigProposal with
+      proposer
+      signers = [signer1]
+      minSigners = 1
+      description = "Will be cancelled"
+      approvals = []
+
+  submit proposer do
+    exerciseCmd proposalCid Cancel
+
+  result <- queryContractId proposer proposalCid
+  assert $ result == None
