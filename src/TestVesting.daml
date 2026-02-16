@@ -2,6 +2,7 @@ module TestVesting where
 
 import Daml.Script
 import DA.Date
+import DA.Time (time)
 import Patterns.Vesting
 
 -- | Test: Beneficiary accepts vesting proposal.

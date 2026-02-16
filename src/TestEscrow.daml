@@ -2,6 +2,7 @@ module TestEscrow where
 
 import Daml.Script
 import DA.Date
+import DA.Time (time)
 import Patterns.Escrow
 
 -- | Test: Full escrow lifecycle — propose, accept, deposit, release.
